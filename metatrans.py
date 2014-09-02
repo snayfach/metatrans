@@ -36,9 +36,9 @@ def transeq(p_reads):
     """
     gz_in = True if p_reads.split('.')[-1] == 'gz' else False
     if gz_in:
-        command = "zcat %s | ./transeq -trim -frame=6 -sformat1 pearson -osformat2 pearson stdin stdout" % p_reads
+        command = "zcat %s | transeq -trim -frame=6 -sformat1 pearson -osformat2 pearson stdin stdout" % p_reads
     else:
-        command = "zcat  | ./transeq -trim -frame=6 -sformat1 pearson -osformat2 pearson %s stdout" % p_reads
+        command = "zcat | transeq -trim -frame=6 -sformat1 pearson -osformat2 pearson %s stdout" % p_reads
     pipe = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=open('/dev/null', 'w'))
     return pipe.stdout
 
@@ -48,7 +48,7 @@ def six_frame_trans(p_reads, p_orfs, method, orf_len):
     if method == '6FT':
         write_no_split(pipe, f_orfs)
     elif method == '6FT-split':
-        write_no_split(pipe, f_orfs, orf_len)
+        write_with_split(pipe, f_orfs, orf_len)
 
 def write_no_split(pipe, f_out):
     """
@@ -82,7 +82,7 @@ def write_with_split(pipe, f_out, orf_len):
         id = line.rstrip().split()[0]
         break
     # loop over lines
-    for line in pipe.stdout:
+    for line in pipe:
         if line[0] == '>':
             for frame, split_seq in enumerate(seq.split('*')):
                 if len(split_seq) >= orf_len:
@@ -99,7 +99,8 @@ def run_prodigal(p_reads, p_orfs):
     """
         Run prodigal on p_reads. Write results to p_orfs
     """
-    p_prodigal = './Prodigal-2.60/prodigal' # path to binary
+    #p_prodigal = './Prodigal-2.60/prodigal' # path to binary
+    p_prodigal  = 'prodigal' #assume it is in user's path to enable global usage
     p_tmp = p_orfs + 'tmp' # tmp file
     # run prodigal
     gz_in = True if p_reads.split('.')[-1] == 'gz' else False
