@@ -92,8 +92,9 @@ def write_with_split(pipe, f_out, orf_len):
         else:
             seq += line.rstrip()
     # write last seq
-    f_out.write(id+'_'+str(frame)+'\n'+seq+'\n')
-
+    for frame, split_seq in enumerate(seq.split('*')):
+        if len(split_seq) >= orf_len:
+            f_out.write(id+'_'+str(frame)+'\n'+split_seq+'\n')
 
 def run_prodigal(p_reads, p_orfs):
     """
