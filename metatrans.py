@@ -2,38 +2,22 @@
 import os, optparse, gzip, subprocess
 import datetime as dt
 
-# Parse command line args
-parser          = optparse.OptionParser(usage = "Usage: python metatrans.py [-options] <p_reads> <p_orfs>")
-parser.add_option("-m", dest="method", default='Prodigal', help="translation method [6FT, 6FT-split, Prodigal] Default = Prodigal")
-parser.add_option("-l", dest="orf_len", default='1', help="minimum orf length to keep. Default = 1")
-parser.add_option("-t", dest="timeit", default=False, action='store_true', help="time execution. Default = False")
-try:
-    (options, args) = parser.parse_args()
-    p_reads         = args[0]
-    p_orfs          = args[1]
-    method          = options.method
-    orf_len         = int(options.orf_len)
-    timeit          = options.timeit
-#    p_reads         = "./example/test.fna.gz" # example params
-#    p_orfs          = "./example/test.faa.gz" # example params
-#    method          = "6FT" # example params
-#    orf_len         = 15 # example params
-except Exception:
-    print "\nIncorrect options/parameters!"
-    print "Usage: python metatrans.py [-options] <p_reads> <p_orfs>"
-    print ""
-    quit()
-if method not in ['6FT', '6FT-split', 'Prodigal']:
-    print 'Error: Incorrect value for -m option. Must be one of: 6FT, 6FT-split, Prodigal'
-    exit()
-if orf_len > 1 and method != '6FT-split':
-    print 'Warning: ORF length filtering only valid when using -m 6FT-split.'
-
 # Functions
+def get_read_length(p_reads, max_reads=10000):
+	""" Use up to max_reads to estimate mean read length of p_reads """
+	lengths = []
+	n = 0
+	infile = gzip.open(p_reads) if p_reads.split('.')[-1] == 'gz' else open(p_reads)
+	for line in infile:
+		if line[0] != '>': continue
+		lengths.append(int(line.split()[0].split('-rl')[-1]))
+		n += 1
+		if n >= max_reads: break
+	mean_length = sum(lengths)/float(len(lengths))
+	return mean_length
+
 def transeq(p_reads):
-    """
-        Run transeq on p_reads; Return results in pipe
-    """
+    """ Run transeq on p_reads; Return results in pipe """
     gz_in = True if p_reads.split('.')[-1] == 'gz' else False
     if gz_in:
         command = "zcat %s | transeq -trim -frame=6 -sformat1 pearson -osformat2 pearson stdin stdout" % p_reads
@@ -51,9 +35,7 @@ def six_frame_trans(p_reads, p_orfs, method, orf_len):
         write_with_split(pipe, f_orfs, orf_len)
 
 def write_no_split(pipe, f_out):
-    """
-        Write sequences from pipe to f_out
-    """
+    """ Write sequences from pipe to f_out """
     id = ''
     seq = ''
     frame = 0
@@ -122,15 +104,55 @@ def run_prodigal(p_reads, p_orfs):
     else:
         os.rename(p_tmp, p_orfs)
 
+def parse_cmd_args():
+	parser          = optparse.OptionParser(usage = "Usage: python metatrans.py [-options] <p_reads> <p_orfs>")
+	parser.add_option("-m", dest="method", help="translation method [6FT, 6FT-split, Prodigal] Default = Prodigal")
+	parser.add_option("-l", dest="orf_len", default='1', help="minimum orf length to keep. Default = 1")
+	parser.add_option("-t", dest="timeit", default=False, action='store_true', help="time execution. Default = False")
+	try:
+		(options, args) = parser.parse_args()
+		p_reads         = args[0]
+		p_orfs          = args[1]
+		method          = options.method
+		orf_len         = int(options.orf_len)
+		timeit          = options.timeit
+	except Exception:
+		print "\nIncorrect options/parameters!"
+		print "Usage: python metatrans.py [-options] <p_reads> <p_orfs>"
+		print ""
+		quit()
+	if method not in [None, '6FT', '6FT-split', 'Prodigal']:
+		print 'Error: Incorrect value for -m option. Must be one of: 6FT, 6FT-split, Prodigal'
+		exit()
+	if orf_len > 1 and method != '6FT-split':
+		print 'Warning: ORF length filtering only valid when using -m 6FT-split.'
+	return (p_reads, p_orfs, method, orf_len, timeit)
+
+
 # Main
-start = dt.datetime.now()
-if method in ['6FT','6FT-split']:
-    six_frame_trans(p_reads, p_orfs, method, orf_len)
-elif method == 'Prodigal':
-    run_prodigal(p_reads, p_orfs)
-stop = dt.datetime.now()
-if timeit:
-    print 'Time elapsed (s):', (stop - start).seconds
+if __name__ == "__main__":
+
+	p_reads, p_orfs, method, orf_len, timeit = parse_cmd_args()
+	
+	if method is None:
+		read_length = get_read_length(p_reads)
+		if read_length >= 75:
+			method = 'Prodigal'
+		else:
+			method = '6FT'
+			orf_len = 15
+
+	start = dt.datetime.now()
+	
+	if method in ['6FT','6FT-split']:
+		six_frame_trans(p_reads, p_orfs, method, orf_len)
+	elif method == 'Prodigal':
+		run_prodigal(p_reads, p_orfs)
+
+	stop = dt.datetime.now()
+
+	if timeit:
+		print 'Time elapsed (s):', (stop - start).seconds
 
 
 
